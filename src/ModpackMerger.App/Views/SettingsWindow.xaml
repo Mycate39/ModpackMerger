@@ -1,0 +1,21 @@
+<Window x:Class="ModpackMerger.App.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Réglages" Icon="/Assets/app.ico" Width="520" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <StackPanel Margin="20">
+        <TextBlock Text="Clé API CurseForge (optionnelle)" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <TextBlock TextWrapping="Wrap" Opacity="0.75" Margin="0,0,0,10">
+            Sans clé, les mods CurseForge sont téléchargés via le lien public et leurs noms sont déduits des fichiers.
+            Avec une clé (gratuite sur
+            <Hyperlink NavigateUri="https://console.curseforge.com" RequestNavigate="OnNavigate">console.curseforge.com</Hyperlink>),
+            les noms exacts des projets s'affichent dès l'import.
+        </TextBlock>
+        <PasswordBox x:Name="KeyBox" Margin="0,0,0,16" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Enregistrer" IsDefault="True" Click="OnSave" Padding="16,6" Margin="0,0,8,0"
+                    Style="{DynamicResource AccentButtonStyle}" />
+            <Button Content="Annuler" IsCancel="True" Padding="16,6" />
+        </StackPanel>
+    </StackPanel>
+</Window>

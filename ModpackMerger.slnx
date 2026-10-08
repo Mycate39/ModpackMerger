@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ModpackMerger.App/ModpackMerger.App.csproj" />
+    <Project Path="src/ModpackMerger.Core/ModpackMerger.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ModpackMerger.Core.Tests/ModpackMerger.Core.Tests.csproj" />
+  </Folder>
+</Solution>
