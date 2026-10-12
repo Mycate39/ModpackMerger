@@ -13,7 +13,7 @@ dotnet publish src/ModpackMerger.App -c Release -r win-x64 --self-contained -p:P
 
 ## Utilisation
 
-1. **Importer** le modpack source (boutons *Choisir un fichier* / *Choisir un dossier*, ou glisser-déposer sur la fenêtre) :
+1. **Importer** le modpack source (boutons *Choisir un fichier* / *Choisir un dossier*, glisser-déposer sur la fenêtre, ou chemin collé dans le champ puis Entrée) :
    - archive CurseForge `.zip` ou Modrinth `.mrpack` ;
    - dossier d'instance CurseForge App, Prism / MultiMC (`.minecraft/mods`), `.minecraft` classique ;
    - dossier `mods` directement, ou modpack décompressé (manifest + `overrides`).

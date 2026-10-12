@@ -60,6 +60,18 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _selectedPage;
     [ObservableProperty] private string _searchText = "";
 
+    /// <summary>Chemin saisi ou collé dans la carte « Modpack source » (dossier ou archive).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ImportPathCommand))]
+    private string _sourcePathInput = "";
+
+    /// <summary>Version affichée dans le volet de navigation, ex. "1.0.0" (sans le hash de commit).</summary>
+    public static string AppVersion { get; } =
+        (System.Reflection.Assembly.GetEntryAssembly()?
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion ?? "")
+        .Split('+')[0];
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPack))]
     [NotifyCanExecuteChangedFor(nameof(AnalyzeCommand))]
@@ -67,7 +79,7 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AnalyzeCommand), nameof(InjectCommand), nameof(ImportFileCommand),
-        nameof(ImportFolderCommand), nameof(CancelCommand), nameof(BrowseTargetCommand))]
+        nameof(ImportFolderCommand), nameof(ImportPathCommand), nameof(CancelCommand), nameof(BrowseTargetCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -123,8 +135,46 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(IsIdle))]
     private async Task ImportFolder()
     {
-        if (_dialogs.PickFolder("Choisir le modpack source (dossier de l'instance, dossier « mods » ou pack décompressé)", null) is { } path)
+        var initial = Directory.Exists(SourcePathInput) ? SourcePathInput : null;
+        if (_dialogs.PickFolder("Choisir le modpack source (dossier de l'instance, dossier « mods » ou pack décompressé)", initial) is { } path)
             await ImportAsync(path);
+    }
+
+    private bool CanImportPath() => !IsBusy && !string.IsNullOrWhiteSpace(SourcePathInput);
+
+    /// <summary>Importe le chemin tapé ou collé (Entrée ou bouton « Importer »).</summary>
+    [RelayCommand(CanExecute = nameof(CanImportPath))]
+    private async Task ImportPath()
+    {
+        if (NormalizeUserPath(SourcePathInput) is not { } path)
+        {
+            Notify("Chemin invalide", "Ce chemin contient des caractères non autorisés.", NotificationSeverity.Error);
+            return;
+        }
+        if (!Directory.Exists(path) && !File.Exists(path))
+        {
+            Notify("Chemin introuvable", $"Aucun dossier ni fichier à cet emplacement :\n{path}", NotificationSeverity.Error);
+            return;
+        }
+        await ImportAsync(path);
+    }
+
+    /// <summary>
+    /// Nettoie un chemin collé : espaces, guillemets ajoutés par « Copier en tant que chemin » de l'explorateur,
+    /// variables d'environnement (%APPDATA%…). Renvoie null si le chemin est invalide.
+    /// </summary>
+    internal static string? NormalizeUserPath(string input)
+    {
+        var path = Environment.ExpandEnvironmentVariables(input.Trim().Trim('"', '\'').Trim());
+        if (path.Length == 0) return null;
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Importe une archive (.zip / .mrpack) ou un dossier.</summary>
@@ -144,6 +194,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         _pack = pack;
+        SourcePathInput = path;
         foreach (var mod in Mods) mod.PropertyChanged -= OnModPropertyChanged;
         Mods.Clear();
         foreach (var entry in pack.Mods)
