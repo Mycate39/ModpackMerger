@@ -80,7 +80,7 @@
         <!-- ═══════════════ Volet de navigation ═══════════════ -->
         <DockPanel Grid.Column="0" Margin="8,8,4,12" anim:Anim.Entrance="True">
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="12,8,0,20">
-                <Image Source="/Assets/app.ico" Width="32" Height="32" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                <Image Source="/Assets/logo.png" Width="32" Height="32" RenderOptions.BitmapScalingMode="HighQuality" />
                 <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="Modpack Merger" Style="{StaticResource BodyStrongText}" FontSize="16" />
                     <TextBlock Text="Fusion de modpacks Minecraft" Style="{StaticResource CaptionText}" />
@@ -232,7 +232,7 @@
                                     </StackPanel>
                                     <Border DockPanel.Dock="Left" Width="56" Height="56" CornerRadius="8" Margin="0,0,16,0"
                                             Background="{DynamicResource SubtleFillColorSecondaryBrush}">
-                                        <Image Source="/Assets/app.ico" Width="32" Height="32" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                        <Image Source="/Assets/logo.png" Width="32" Height="32" RenderOptions.BitmapScalingMode="HighQuality" />
                                     </Border>
                                     <StackPanel VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal">
