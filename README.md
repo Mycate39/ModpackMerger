@@ -2,7 +2,11 @@
 
 Application Windows 11 (WPF, .NET 10, thème Fluent) qui importe un modpack — archive CurseForge `.zip`, Modrinth `.mrpack`, ou **dossier classique** — liste ses mods, permet d'en exclure certains, puis les injecte dans le dossier `mods` d'un modpack personnel en gérant les doublons.
 
-## Lancer
+## Installation
+
+Télécharge `ModpackMerger-Setup-x.y.z.exe` depuis les [releases](https://github.com/Mycate39/ModpackMerger/releases) et lance-le : il propose de s'installer pour ton compte Windows (sans droits administrateur) dans `%LocalAppData%\Programs\Modpack Merger`, avec un raccourci dans le menu Démarrer (et sur le bureau en option). Relancer un exe plus récent met à jour l'installation. Désinstallation : *Paramètres › Applications › Modpack Merger*. Le bouton *Utiliser sans installer* (ou l'argument `--portable`) lance l'app sans l'installer.
+
+## Développement
 
 ```powershell
 dotnet run --project src/ModpackMerger.App            # application
