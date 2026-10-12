@@ -9,6 +9,8 @@ public sealed class AppSettings
     public string? CurseForgeApiKey { get; set; }
 
     public string? LastTargetFolder { get; set; }
+
+    public bool CheckUpdatesOnStartup { get; set; } = true;
 }
 
 /// <summary>Persistance des réglages dans %AppData%\ModpackMerger\settings.json.</summary>

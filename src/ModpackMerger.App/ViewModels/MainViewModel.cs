@@ -12,6 +12,7 @@ using ModpackMerger.Core.Injection;
 using ModpackMerger.Core.Models;
 using ModpackMerger.Core.Parsing;
 using ModpackMerger.Core.Resolution;
+using ModpackMerger.Core.Updates;
 
 namespace ModpackMerger.App.ViewModels;
 
@@ -33,11 +34,13 @@ public partial class MainViewModel : ObservableObject
     private CancellationTokenSource? _cts;
     private ModpackInfo? _pack;
     private int _notificationVersion;
+    private readonly UpdateService _updates;
 
     public MainViewModel(IDialogService dialogs, SettingsService settings)
     {
         _dialogs = dialogs;
         _settings = settings;
+        _updates = new UpdateService(_http);
         ModsView = CollectionViewSource.GetDefaultView(Mods);
         ModsView.Filter = o => o is ModItemViewModel m && MatchesSearch(m);
         ModsView.SortDescriptions.Add(new SortDescription(nameof(ModItemViewModel.DisplayName), ListSortDirection.Ascending));
@@ -86,6 +89,20 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasTarget))]
     [NotifyCanExecuteChangedFor(nameof(AnalyzeCommand), nameof(OpenTargetFolderCommand))]
     private string? _targetFolder;
+
+    // Mise à jour automatique (bandeau dans le volet de navigation).
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsUpdateAvailable), nameof(UpdateTitle))]
+    private UpdateInfo? _availableUpdate;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(InstallUpdateCommand), nameof(CheckForUpdatesCommand))]
+    private bool _isUpdating;
+
+    [ObservableProperty] private double _updateProgress;
+
+    public bool IsUpdateAvailable => AvailableUpdate is not null;
+    public string UpdateTitle => AvailableUpdate is null ? "" : $"Version {AvailableUpdate.Version} disponible";
 
     // Notification façon InfoBar (Windows 11), fermée automatiquement.
     [ObservableProperty] private bool _isNotificationOpen;
@@ -437,14 +454,97 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void OpenSettings()
     {
-        if (_dialogs.EditApiKey(_settings.Current.CurseForgeApiKey) is not { } key) return;
-        _settings.Current.CurseForgeApiKey = string.IsNullOrWhiteSpace(key) ? null : key.Trim();
+        if (_dialogs.EditSettings(_settings.Current.CurseForgeApiKey, _settings.Current.CheckUpdatesOnStartup) is not { } result) return;
+        var key = string.IsNullOrWhiteSpace(result.ApiKey) ? null : result.ApiKey.Trim();
+        var keyChanged = key != _settings.Current.CurseForgeApiKey;
+        _settings.Current.CurseForgeApiKey = key;
+        _settings.Current.CheckUpdatesOnStartup = result.CheckUpdatesOnStartup;
         _settings.Save();
-        var message = _settings.Current.CurseForgeApiKey is null
-            ? "Clé API CurseForge supprimée."
+        var message = !keyChanged ? "Réglages enregistrés."
+            : key is null ? "Clé API CurseForge supprimée."
             : "Clé API CurseForge enregistrée (prise en compte au prochain import).";
         AddLog(message);
         Notify("Réglages enregistrés", message, NotificationSeverity.Informational);
+    }
+
+    // ───────────── Mise à jour automatique ─────────────
+
+    /// <summary>Appelé une fois la fenêtre affichée.</summary>
+    public async Task OnStartedAsync(bool justUpdated)
+    {
+        if (justUpdated)
+        {
+            AddLog($"Mise à jour installée : version {AppInstaller.CurrentVersion}.");
+            Notify("Mise à jour installée", $"Modpack Merger est maintenant en version {AppInstaller.CurrentVersion}.", NotificationSeverity.Success);
+        }
+        else if (_settings.Current.CheckUpdatesOnStartup && UpdateService.IsSupported)
+        {
+            await CheckForUpdatesCoreAsync(userInitiated: false);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(IsNotUpdating))]
+    private Task CheckForUpdates() => CheckForUpdatesCoreAsync(userInitiated: true);
+
+    private bool IsNotUpdating() => !IsUpdating;
+
+    private async Task CheckForUpdatesCoreAsync(bool userInitiated)
+    {
+        if (!UpdateService.IsSupported)
+        {
+            if (userInitiated) Notify("Mises à jour", "Indisponible dans une version de développement.", NotificationSeverity.Informational);
+            return;
+        }
+
+        var update = await _updates.CheckAsync(CancellationToken.None);
+        AvailableUpdate = update;
+        if (update is not null)
+        {
+            AddLog($"Mise à jour disponible : version {update.Version} (actuelle : {AppInstaller.CurrentVersion}).");
+            Notify("Mise à jour disponible", $"La version {update.Version} est prête à être installée.", NotificationSeverity.Informational);
+        }
+        else if (userInitiated)
+        {
+            Notify("Aucune mise à jour", $"Tu as déjà la dernière version ({AppInstaller.CurrentVersion}).", NotificationSeverity.Success);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(IsNotUpdating))]
+    private async Task InstallUpdate()
+    {
+        if (AvailableUpdate is not { } update) return;
+
+        // Copie non installée ("Utiliser sans installer") : on ne peut pas se remplacer, on ouvre la page de la release.
+        if (!AppInstaller.IsRunningInstalledCopy)
+        {
+            Process.Start(new ProcessStartInfo(update.PageUrl) { UseShellExecute = true });
+            return;
+        }
+
+        if (IsBusy)
+        {
+            Notify("Opération en cours", "Attends la fin de l'opération en cours avant de mettre à jour.", NotificationSeverity.Warning);
+            return;
+        }
+
+        IsUpdating = true;
+        UpdateProgress = 0;
+        try
+        {
+            AddLog($"Téléchargement de la version {update.Version}…");
+            var progress = new Progress<double>(p => UpdateProgress = p);
+            var installer = await _updates.DownloadAsync(update, progress, CancellationToken.None);
+            AddLog("Installation de la mise à jour : l'application va redémarrer.");
+            UpdateService.LaunchUpdater(installer);
+            System.Windows.Application.Current.Shutdown();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or UnauthorizedAccessException
+                                   or System.ComponentModel.Win32Exception or TaskCanceledException)
+        {
+            IsUpdating = false;
+            AddLog("ÉCHEC de la mise à jour : " + ex.Message);
+            Notify("Mise à jour impossible", ex.Message, NotificationSeverity.Error);
+        }
     }
 
     [RelayCommand]

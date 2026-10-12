@@ -4,7 +4,9 @@ Application Windows 11 (WPF, .NET 10, thème Fluent) qui importe un modpack — 
 
 ## Installation
 
-Télécharge `ModpackMerger-Setup-x.y.z.exe` depuis les [releases](https://github.com/Mycate39/ModpackMerger/releases) et lance-le : il propose de s'installer pour ton compte Windows (sans droits administrateur) dans `%LocalAppData%\Programs\Modpack Merger`, avec un raccourci dans le menu Démarrer (et sur le bureau en option). Relancer un exe plus récent met à jour l'installation. Désinstallation : *Paramètres › Applications › Modpack Merger*. Le bouton *Utiliser sans installer* (ou l'argument `--portable`) lance l'app sans l'installer.
+Télécharge `ModpackMerger-Setup-x.y.z.exe` depuis les [releases](https://github.com/Mycate39/ModpackMerger/releases) et lance-le : il propose de s'installer pour ton compte Windows (sans droits administrateur) dans `%LocalAppData%\Programs\Modpack Merger`, avec un raccourci dans le menu Démarrer (et sur le bureau en option). Relancer un exe plus récent met à jour l'installation.
+
+**Mise à jour automatique** : au démarrage, l'app vérifie la dernière release stable sur GitHub (désactivable dans *Réglages*, ou manuellement via *Rechercher les mises à jour*). Si une version plus récente existe, un bandeau propose de l'installer : l'installeur est téléchargé, son empreinte SHA-256 vérifiée, puis l'app se remplace et redémarre. Pour publier une mise à jour, il suffit de créer une release GitHub (non pre-release) avec un tag `vX.Y.Z` plus élevé et l'installeur `.exe` en pièce jointe. Désinstallation : *Paramètres › Applications › Modpack Merger*. Le bouton *Utiliser sans installer* (ou l'argument `--portable`) lance l'app sans l'installer.
 
 ## Développement
 

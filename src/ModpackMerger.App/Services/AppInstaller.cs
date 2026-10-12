@@ -41,6 +41,8 @@ public static class AppInstaller
     /// </summary>
     public static bool IsSingleFileBuild => !File.Exists(Path.Combine(AppContext.BaseDirectory, "ModpackMerger.Core.dll"));
 
+    public static bool HasDesktopShortcut => File.Exists(DesktopShortcut);
+
     public static bool IsRunningInstalledCopy =>
         Environment.ProcessPath is { } path
         && string.Equals(Path.GetFullPath(path), Path.GetFullPath(InstalledExe), StringComparison.OrdinalIgnoreCase);

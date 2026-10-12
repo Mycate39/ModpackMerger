@@ -21,6 +21,15 @@ public partial class App : Application
 
         var args = e.Args.ToList();
 
+        // Installeur téléchargé par la mise à jour automatique : remplace la copie installée puis la relance.
+        if (args.Contains(UpdateService.UpdateArgument, StringComparer.OrdinalIgnoreCase))
+        {
+            if (UpdateService.ApplyUpdate(args) is { } error)
+                MessageBox.Show($"La mise à jour n'a pas pu être installée :\n{error}", "Mise à jour", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown();
+            return;
+        }
+
         // Désinstallation, lancée depuis Paramètres Windows › Applications.
         if (args.Contains(AppInstaller.UninstallArgument, StringComparer.OrdinalIgnoreCase))
         {
@@ -64,8 +73,12 @@ public partial class App : Application
 
         // Permet "Ouvrir avec…" depuis l'explorateur : ModpackMerger.exe <archive ou dossier>
         var packPath = args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
-        if (packPath is not null)
-            window.Loaded += async (_, _) => await viewModel.ImportAsync(packPath);
+        var justUpdated = args.Contains(UpdateService.UpdatedArgument, StringComparer.OrdinalIgnoreCase);
+        window.Loaded += async (_, _) =>
+        {
+            if (packPath is not null) await viewModel.ImportAsync(packPath);
+            await viewModel.OnStartedAsync(justUpdated);
+        };
 
         window.Show();
     }

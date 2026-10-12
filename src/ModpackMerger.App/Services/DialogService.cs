@@ -9,7 +9,8 @@ public interface IDialogService
     string? PickModpackFile();
     string? PickFolder(string title, string? initialDirectory);
     bool Confirm(string title, string message);
-    string? EditApiKey(string? current);
+    /// <summary>Ouvre les réglages ; renvoie null si l'utilisateur annule.</summary>
+    (string ApiKey, bool CheckUpdatesOnStartup)? EditSettings(string? apiKey, bool checkUpdatesOnStartup);
 }
 
 public sealed class DialogService : IDialogService
@@ -39,9 +40,9 @@ public sealed class DialogService : IDialogService
     public bool Confirm(string title, string message) =>
         MessageBox.Show(Owner!, message, title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
 
-    public string? EditApiKey(string? current)
+    public (string ApiKey, bool CheckUpdatesOnStartup)? EditSettings(string? apiKey, bool checkUpdatesOnStartup)
     {
-        var window = new SettingsWindow(current) { Owner = Owner };
-        return window.ShowDialog() == true ? window.ApiKey : null;
+        var window = new SettingsWindow(apiKey, checkUpdatesOnStartup) { Owner = Owner };
+        return window.ShowDialog() == true ? (window.ApiKey, window.CheckUpdatesOnStartup) : null;
     }
 }
