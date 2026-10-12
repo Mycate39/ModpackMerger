@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Text.Json;
 using ModpackMerger.Core.Models;
 
@@ -10,11 +9,11 @@ namespace ModpackMerger.Core.Parsing;
 /// </summary>
 public sealed class ModrinthParser : IModpackParser
 {
-    public bool CanParse(ZipArchive archive) => ZipHelpers.Find(archive, "modrinth.index.json") is not null;
+    public bool CanParse(IPackFileSystem pack) => pack.Find("modrinth.index.json") is not null;
 
-    public ModpackInfo Parse(ZipArchive archive, string sourcePath)
+    public ModpackInfo Parse(IPackFileSystem pack, string sourcePath)
     {
-        using var doc = ZipHelpers.ReadJson(ZipHelpers.Find(archive, "modrinth.index.json")!);
+        using var doc = pack.ReadJson(pack.Find("modrinth.index.json")!);
         var root = doc.RootElement;
 
         if (root.GetString("game") is { } game && game != "minecraft")
@@ -58,8 +57,8 @@ public sealed class ModrinthParser : IModpackParser
         // client-overrides a priorité sur overrides : on garde la dernière occurrence par nom de fichier.
         var embedded = new Dictionary<string, ModEntry>(StringComparer.OrdinalIgnoreCase);
         foreach (var dir in new[] { "overrides", "client-overrides" })
-            foreach (var entry in ZipHelpers.EmbeddedJars(archive, dir))
-                embedded[entry.Name] = CurseForgeParser.EmbeddedEntry(entry);
+            foreach (var file in pack.JarsIn(dir + "/mods"))
+                embedded[file.Name] = CurseForgeParser.EmbeddedEntry(file);
         mods.AddRange(embedded.Values);
 
         string? mcVersion = null, loader = null;

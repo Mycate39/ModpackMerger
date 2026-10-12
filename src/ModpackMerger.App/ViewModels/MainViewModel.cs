@@ -15,15 +15,24 @@ using ModpackMerger.Core.Resolution;
 
 namespace ModpackMerger.App.ViewModels;
 
+public enum NotificationSeverity
+{
+    Informational,
+    Success,
+    Warning,
+    Error,
+}
+
 public partial class MainViewModel : ObservableObject
 {
-    public const int ModsTab = 0, PlanTab = 1, LogTab = 2;
+    public const int SetupPage = 0, ModsPage = 1, PlanPage = 2, LogPage = 3;
 
     private readonly IDialogService _dialogs;
     private readonly SettingsService _settings;
     private readonly HttpClient _http = HttpClientFactory.Create();
     private CancellationTokenSource? _cts;
     private ModpackInfo? _pack;
+    private int _notificationVersion;
 
     public MainViewModel(IDialogService dialogs, SettingsService settings)
     {
@@ -33,7 +42,7 @@ public partial class MainViewModel : ObservableObject
         ModsView.Filter = o => o is ModItemViewModel m && MatchesSearch(m);
         ModsView.SortDescriptions.Add(new SortDescription(nameof(ModItemViewModel.DisplayName), ListSortDirection.Ascending));
         _targetFolder = settings.Current.LastTargetFolder;
-        AddLog("Prêt. Importez un modpack (.zip CurseForge ou .mrpack Modrinth), ou glissez-le sur la fenêtre.");
+        AddLog("Prêt. Importez un modpack : fichier .zip / .mrpack ou dossier (instance, dossier « mods »…).");
     }
 
     public ObservableCollection<ModItemViewModel> Mods { get; } = [];
@@ -41,34 +50,51 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<PlanItemViewModel> Plan { get; } = [];
     public ObservableCollection<string> Log { get; } = [];
 
-    [ObservableProperty] private string _packTitle = "Aucun modpack importé";
+    [ObservableProperty] private string _packTitle = "";
     [ObservableProperty] private string _packDetails = "";
-    [ObservableProperty] private string _statusText = "";
+    [ObservableProperty] private string _packFormatLabel = "";
+    [ObservableProperty] private string _statusText = "Importez un modpack pour commencer.";
     [ObservableProperty] private double _progressValue;
     [ObservableProperty] private double _progressMaximum = 1;
     [ObservableProperty] private bool _isProgressIndeterminate;
-    [ObservableProperty] private int _selectedTab;
+    [ObservableProperty] private int _selectedPage;
+    [ObservableProperty] private string _searchText = "";
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(AnalyzeCommand), nameof(InjectCommand), nameof(ImportCommand), nameof(CancelCommand), nameof(BrowseTargetCommand))]
+    [NotifyPropertyChangedFor(nameof(HasPack))]
+    [NotifyCanExecuteChangedFor(nameof(AnalyzeCommand))]
+    private bool _packLoaded;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AnalyzeCommand), nameof(InjectCommand), nameof(ImportFileCommand),
+        nameof(ImportFolderCommand), nameof(CancelCommand), nameof(BrowseTargetCommand))]
     private bool _isBusy;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTarget))]
     [NotifyCanExecuteChangedFor(nameof(AnalyzeCommand), nameof(OpenTargetFolderCommand))]
     private string? _targetFolder;
 
-    [ObservableProperty] private string _searchText = "";
+    // Notification façon InfoBar (Windows 11), fermée automatiquement.
+    [ObservableProperty] private bool _isNotificationOpen;
+    [ObservableProperty] private string _notificationTitle = "";
+    [ObservableProperty] private string _notificationMessage = "";
+    [ObservableProperty] private NotificationSeverity _notificationSeverity;
 
-    public string SelectionSummary => $"{Mods.Count(m => m.IsSelected)} / {Mods.Count} mods sélectionnés";
+    public bool HasPack => PackLoaded;
+    public bool HasTarget => !string.IsNullOrWhiteSpace(TargetFolder);
+    public bool HasPlan => Plan.Count > 0;
+    public int SelectedCount => Mods.Count(m => m.IsSelected);
+    public int ConflictCount => Plan.Count(p => p.IsConflict);
+    public string SelectionSummary => $"{SelectedCount} / {Mods.Count} mods sélectionnés";
 
     public string PlanSummary
     {
         get
         {
             if (Plan.Count == 0) return "Lancez l'analyse pour comparer la sélection avec votre modpack personnel.";
-            var conflicts = Plan.Count(p => p.IsConflict);
             var identical = Plan.Count(p => p.Kind == ConflictKind.Identical);
-            return $"{Plan.Count - conflicts - identical} nouveau(x) · {conflicts} doublon(s) à arbitrer · {identical} déjà présent(s)";
+            return $"{Plan.Count - ConflictCount - identical} nouveau(x) · {ConflictCount} doublon(s) à arbitrer · {identical} déjà présent(s)";
         }
     }
 
@@ -81,16 +107,28 @@ public partial class MainViewModel : ObservableObject
         || m.DisplayName.Contains(SearchText, StringComparison.CurrentCultureIgnoreCase)
         || m.FileName.Contains(SearchText, StringComparison.CurrentCultureIgnoreCase);
 
-    // ───────────── 1. Import ─────────────
+    /// <summary>Paramètre en texte pour être utilisable directement depuis le XAML (CommandParameter="1").</summary>
+    [RelayCommand]
+    private void Navigate(string page) => SelectedPage = int.Parse(page);
+
+    // ───────────── 1. Import (fichier ou dossier) ─────────────
 
     [RelayCommand(CanExecute = nameof(IsIdle))]
-    private async Task Import()
+    private async Task ImportFile()
     {
         if (_dialogs.PickModpackFile() is { } path)
-            await ImportFileAsync(path);
+            await ImportAsync(path);
     }
 
-    public async Task ImportFileAsync(string path)
+    [RelayCommand(CanExecute = nameof(IsIdle))]
+    private async Task ImportFolder()
+    {
+        if (_dialogs.PickFolder("Choisir le modpack source (dossier de l'instance, dossier « mods » ou pack décompressé)", null) is { } path)
+            await ImportAsync(path);
+    }
+
+    /// <summary>Importe une archive (.zip / .mrpack) ou un dossier.</summary>
+    public async Task ImportAsync(string path)
     {
         if (IsBusy) return;
         ModpackInfo pack;
@@ -101,7 +139,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex) when (ex is ModpackFormatException or IOException or UnauthorizedAccessException)
         {
             AddLog($"Import impossible : {ex.Message}");
-            _dialogs.ShowError("Import impossible", ex.Message);
+            Notify("Import impossible", ex.Message, NotificationSeverity.Error);
             return;
         }
 
@@ -115,19 +153,27 @@ public partial class MainViewModel : ObservableObject
             Mods.Add(item);
         }
         InvalidatePlan();
-        SelectedTab = ModsTab;
 
+        PackFormatLabel = pack.Format switch
+        {
+            ModpackFormat.CurseForge => "CurseForge",
+            ModpackFormat.Modrinth => "Modrinth",
+            _ => "Dossier",
+        };
         PackTitle = pack.Version is null ? pack.Name : $"{pack.Name} — v{pack.Version}";
         PackDetails = string.Join("  ·  ", new[]
         {
-            pack.Format == ModpackFormat.CurseForge ? "CurseForge" : "Modrinth",
             pack.MinecraftVersion is null ? null : $"Minecraft {pack.MinecraftVersion}",
             pack.Loader,
             pack.Author is null ? null : $"par {pack.Author}",
             $"{pack.Mods.Count} mods",
         }.Where(s => !string.IsNullOrEmpty(s)));
-        OnPropertyChanged(nameof(SelectionSummary));
-        AddLog($"Modpack importé : {PackTitle} ({pack.Mods.Count} mods).");
+        PackLoaded = true;
+        NotifySelectionChanged();
+        AddLog($"Modpack importé : {PackTitle} ({PackFormatLabel}, {pack.Mods.Count} mods) depuis {path}");
+
+        // Sans dossier cible, on reste sur la configuration ; sinon on passe directement au choix des mods.
+        if (HasTarget) SelectedPage = ModsPage;
 
         await RunAsync("Identification des mods…", async ct =>
         {
@@ -138,15 +184,22 @@ public partial class MainViewModel : ObservableObject
             foreach (var mod in Mods) mod.Refresh();
             ModsView.Refresh();
             StatusText = "Mods identifiés. Décochez ceux à exclure, puis lancez l'analyse.";
+            Notify("Modpack importé", $"{pack.Name} : {pack.Mods.Count} mods détectés.", NotificationSeverity.Success);
         });
     }
 
     private void OnModPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(ModItemViewModel.IsSelected)) return;
-        OnPropertyChanged(nameof(SelectionSummary));
-        AnalyzeCommand.NotifyCanExecuteChanged();
+        NotifySelectionChanged();
         InvalidatePlan();
+    }
+
+    private void NotifySelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectionSummary));
+        OnPropertyChanged(nameof(SelectedCount));
+        AnalyzeCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
@@ -166,14 +219,19 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(IsIdle))]
     private void BrowseTarget()
     {
-        if (_dialogs.PickFolder(TargetFolder) is not { } folder) return;
+        if (_dialogs.PickFolder("Choisir le modpack personnel (dossier de l'instance ou son dossier « mods »)", TargetFolder) is not { } folder)
+            return;
 
         // Si l'utilisateur choisit le dossier de l'instance, on cible son sous-dossier "mods".
-        var mods = Path.Combine(folder, "mods");
-        if (!string.Equals(Path.GetFileName(folder), "mods", StringComparison.OrdinalIgnoreCase) && Directory.Exists(mods))
+        foreach (var sub in new[] { "mods", Path.Combine(".minecraft", "mods"), Path.Combine("minecraft", "mods") })
         {
-            AddLog($"Sous-dossier « mods » détecté, cible : {mods}");
-            folder = mods;
+            var mods = Path.Combine(folder, sub);
+            if (!string.Equals(Path.GetFileName(folder), "mods", StringComparison.OrdinalIgnoreCase) && Directory.Exists(mods))
+            {
+                AddLog($"Sous-dossier « {sub} » détecté, cible : {mods}");
+                folder = mods;
+                break;
+            }
         }
 
         TargetFolder = folder;
@@ -186,17 +244,23 @@ public partial class MainViewModel : ObservableObject
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{TargetFolder}\"") { UseShellExecute = true });
     }
 
-    private bool HasTarget() => !string.IsNullOrWhiteSpace(TargetFolder);
-
     // ───────────── 3. Analyse (téléchargement + détection des doublons) ─────────────
 
-    private bool CanAnalyze() => !IsBusy && _pack is not null && HasTarget() && Mods.Any(m => m.IsSelected);
+    private bool CanAnalyze() => !IsBusy && _pack is not null && HasTarget && Mods.Any(m => m.IsSelected);
 
     [RelayCommand(CanExecute = nameof(CanAnalyze))]
     private Task Analyze() => RunAsync("Téléchargement des mods…", async ct =>
     {
         var pack = _pack!;
         var target = TargetFolder!;
+
+        if (IsSameFolder(pack, target))
+        {
+            Notify("Source et cible identiques", "Le modpack source et le dossier cible sont le même dossier.", NotificationSeverity.Warning);
+            StatusText = "Analyse annulée : la source et la cible sont identiques.";
+            return;
+        }
+
         if (!Directory.Exists(target)
             && !_dialogs.Confirm("Dossier introuvable", $"Le dossier suivant n'existe pas :\n{target}\n\nLe créer lors de l'injection ?"))
         {
@@ -214,7 +278,7 @@ public partial class MainViewModel : ObservableObject
         var progress = new Progress<DownloadProgress>(p =>
         {
             ProgressValue = p.Completed;
-            StatusText = $"Téléchargement {p.Completed}/{p.Total} : {p.CurrentItem}";
+            StatusText = $"Récupération {p.Completed}/{p.Total} : {p.CurrentItem}";
         });
         var result = await Task.Run(() => downloader.DownloadAsync(pack, selected, progress, ct), ct);
 
@@ -236,15 +300,31 @@ public partial class MainViewModel : ObservableObject
         // Conflits d'abord, puis nouveaux, puis identiques.
         foreach (var item in plan.OrderBy(p => p.IsConflict ? 0 : p.Kind == ConflictKind.New ? 1 : 2))
             Plan.Add(new PlanItemViewModel(item));
-        OnPropertyChanged(nameof(PlanSummary));
-        InjectCommand.NotifyCanExecuteChanged();
+        NotifyPlanChanged();
 
         AddLog($"Dossier cible : {installed.Count} jar(s) existant(s). {PlanSummary}");
-        StatusText = result.Failures.Count == 0
-            ? "Analyse terminée. Vérifiez les doublons puis cliquez sur « Injecter »."
-            : $"Analyse terminée avec {result.Failures.Count} échec(s) de téléchargement (voir le journal).";
-        SelectedTab = PlanTab;
+        if (result.Failures.Count == 0)
+        {
+            StatusText = "Analyse terminée. Vérifiez les doublons puis cliquez sur « Injecter ».";
+            Notify("Analyse terminée", PlanSummary, ConflictCount > 0 ? NotificationSeverity.Warning : NotificationSeverity.Success);
+        }
+        else
+        {
+            StatusText = $"Analyse terminée avec {result.Failures.Count} échec(s) de téléchargement (voir le journal).";
+            Notify("Analyse terminée avec des erreurs", $"{result.Failures.Count} mod(s) n'ont pas pu être récupérés.", NotificationSeverity.Error);
+        }
+        SelectedPage = PlanPage;
     });
+
+    /// <summary>Évite d'injecter un dossier dans lui-même (source « dossier » = cible).</summary>
+    private static bool IsSameFolder(ModpackInfo pack, string target)
+    {
+        if (pack.Format != ModpackFormat.Folder) return false;
+        var t = Path.GetFullPath(target).TrimEnd('\\', '/');
+        var source = Path.GetFullPath(pack.SourcePath).TrimEnd('\\', '/');
+        return new[] { source, Path.Combine(source, "mods"), Path.Combine(source, ".minecraft", "mods"), Path.Combine(source, "minecraft", "mods") }
+            .Any(s => string.Equals(s, t, StringComparison.OrdinalIgnoreCase));
+    }
 
     [RelayCommand]
     private void SetAllConflicts(ConflictAction action)
@@ -265,7 +345,7 @@ public partial class MainViewModel : ObservableObject
         var replace = items.Count(i => i.Action == ConflictAction.Replace);
         if (install + replace == 0)
         {
-            _dialogs.ShowError("Rien à faire", "Tous les mods du plan sont marqués « Ignorer ».");
+            Notify("Rien à faire", "Tous les mods du plan sont marqués « Ignorer ».", NotificationSeverity.Informational);
             return;
         }
 
@@ -285,13 +365,16 @@ public partial class MainViewModel : ObservableObject
             });
             var report = await ModInjector.InjectAsync(items, TargetFolder!, progress, ct);
 
-            AddLog($"Terminé : {report.Installed} ajouté(s), {report.Replaced} remplacé(s), {report.Skipped} ignoré(s), {report.Errors.Count} erreur(s).");
+            var summary = $"{report.Installed} ajouté(s), {report.Replaced} remplacé(s), {report.Skipped} ignoré(s), {report.Errors.Count} erreur(s).";
+            AddLog("Terminé : " + summary);
             if (report.BackupDirectory is not null) AddLog($"Sauvegarde des fichiers remplacés : {report.BackupDirectory}");
             StatusText = report.Errors.Count == 0 ? "Injection terminée avec succès." : "Injection terminée avec des erreurs (voir le journal).";
+            Notify(report.Errors.Count == 0 ? "Injection réussie" : "Injection terminée avec des erreurs", summary,
+                report.Errors.Count == 0 ? NotificationSeverity.Success : NotificationSeverity.Error);
 
             Plan.Clear(); // le plan est consommé : relancer l'analyse avant une nouvelle injection
-            OnPropertyChanged(nameof(PlanSummary));
-            SelectedTab = LogTab;
+            NotifyPlanChanged();
+            SelectedPage = LogPage;
         });
     }
 
@@ -306,12 +389,32 @@ public partial class MainViewModel : ObservableObject
         if (_dialogs.EditApiKey(_settings.Current.CurseForgeApiKey) is not { } key) return;
         _settings.Current.CurseForgeApiKey = string.IsNullOrWhiteSpace(key) ? null : key.Trim();
         _settings.Save();
-        AddLog(_settings.Current.CurseForgeApiKey is null
+        var message = _settings.Current.CurseForgeApiKey is null
             ? "Clé API CurseForge supprimée."
-            : "Clé API CurseForge enregistrée (prise en compte au prochain import).");
+            : "Clé API CurseForge enregistrée (prise en compte au prochain import).";
+        AddLog(message);
+        Notify("Réglages enregistrés", message, NotificationSeverity.Informational);
     }
 
+    [RelayCommand]
+    private void CloseNotification() => IsNotificationOpen = false;
+
     private bool IsIdle() => !IsBusy;
+
+    /// <summary>Affiche une notification qui se ferme seule après quelques secondes.</summary>
+    private async void Notify(string title, string message, NotificationSeverity severity)
+    {
+        var version = ++_notificationVersion;
+        // Fermer puis rouvrir relance l'animation d'entrée quand une notification en remplace une autre.
+        IsNotificationOpen = false;
+        NotificationTitle = title;
+        NotificationMessage = message;
+        NotificationSeverity = severity;
+        IsNotificationOpen = true;
+
+        await Task.Delay(severity == NotificationSeverity.Error ? 9000 : 5000);
+        if (version == _notificationVersion) IsNotificationOpen = false;
+    }
 
     /// <summary>Exécute une opération longue avec gestion commune : état occupé, annulation, erreurs.</summary>
     private async Task RunAsync(string status, Func<CancellationToken, Task> operation)
@@ -329,12 +432,13 @@ public partial class MainViewModel : ObservableObject
         {
             StatusText = "Opération annulée.";
             AddLog("Opération annulée par l'utilisateur.");
+            Notify("Opération annulée", "L'opération en cours a été interrompue.", NotificationSeverity.Informational);
         }
         catch (Exception ex)
         {
             StatusText = "Erreur : " + ex.Message;
             AddLog("ERREUR : " + ex);
-            _dialogs.ShowError("Erreur", ex.Message);
+            Notify("Erreur", ex.Message, NotificationSeverity.Error);
         }
         finally
         {
@@ -349,9 +453,16 @@ public partial class MainViewModel : ObservableObject
     {
         if (Plan.Count == 0) return;
         Plan.Clear();
-        OnPropertyChanged(nameof(PlanSummary));
-        InjectCommand.NotifyCanExecuteChanged();
+        NotifyPlanChanged();
         StatusText = "Sélection ou dossier cible modifié : relancez l'analyse.";
+    }
+
+    private void NotifyPlanChanged()
+    {
+        OnPropertyChanged(nameof(PlanSummary));
+        OnPropertyChanged(nameof(HasPlan));
+        OnPropertyChanged(nameof(ConflictCount));
+        InjectCommand.NotifyCanExecuteChanged();
     }
 
     private void AddLog(string message) => Log.Add($"[{DateTime.Now:HH:mm:ss}] {message}");

@@ -8,7 +8,7 @@ public enum ModSource
     /// <summary>Référencé avec URL(s) + hashes dans modrinth.index.json, à télécharger.</summary>
     Modrinth,
 
-    /// <summary>Jar embarqué directement dans l'archive (dossier overrides/mods).</summary>
+    /// <summary>Jar présent directement dans le pack (overrides/mods d'une archive, ou jar d'un dossier source).</summary>
     Embedded,
 }
 
@@ -45,7 +45,7 @@ public sealed class ModEntry
     public long? FileSize { get; set; }
 
     // --- Embedded ---
-    /// <summary>Chemin de l'entrée dans l'archive du modpack.</summary>
+    /// <summary>Chemin relatif du jar dans le pack (archive ou dossier source), séparateur '/'.</summary>
     public string? ArchiveEntryPath { get; init; }
 
     /// <summary>Clé unique et stable dans le pack (sert de nom de cache).</summary>

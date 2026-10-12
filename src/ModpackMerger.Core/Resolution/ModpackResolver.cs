@@ -1,6 +1,6 @@
-using System.IO.Compression;
 using ModpackMerger.Core.Metadata;
 using ModpackMerger.Core.Models;
+using ModpackMerger.Core.Parsing;
 
 namespace ModpackMerger.Core.Resolution;
 
@@ -15,24 +15,21 @@ public sealed class ModpackResolver(HttpClient http, string? curseForgeApiKey)
             new ModrinthResolver(http).ResolveAsync(pack.Mods, log, ct));
     }
 
-    /// <summary>Jars embarqués : le nom réel est lu dans leurs métadonnées, directement depuis l'archive.</summary>
+    /// <summary>Jars présents dans le pack : le nom réel est lu dans leurs métadonnées, sans extraction.</summary>
     private static void ResolveEmbedded(ModpackInfo pack, IProgress<string>? log)
     {
         var embedded = pack.Mods.Where(m => m.Source == ModSource.Embedded).ToList();
         if (embedded.Count == 0) return;
 
-        using var archive = ZipFile.OpenRead(pack.SourcePath);
+        using var fs = PackFileSystem.Open(pack.SourcePath);
         foreach (var mod in embedded)
         {
-            if (archive.GetEntry(mod.ArchiveEntryPath!) is not { } entry) continue;
-            using var buffer = new MemoryStream();
-            using (var stream = entry.Open()) stream.CopyTo(buffer);
-            buffer.Position = 0;
-
-            var metadata = JarMetadataReader.Read(buffer);
+            if (fs.Find(mod.ArchiveEntryPath!) is null) continue;
+            using var stream = fs.Open(mod.ArchiveEntryPath!);
+            var metadata = JarMetadataReader.Read(stream);
             if (!string.IsNullOrWhiteSpace(metadata.Name)) mod.DisplayName = metadata.Name;
             mod.VersionLabel = metadata.Version;
         }
-        log?.Report($"{embedded.Count} jar(s) embarqué(s) dans le pack analysé(s).");
+        log?.Report($"{embedded.Count} jar(s) du pack analysé(s).");
     }
 }

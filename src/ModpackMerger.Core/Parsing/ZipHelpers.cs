@@ -3,6 +3,7 @@ using System.Text.Json;
 
 namespace ModpackMerger.Core.Parsing;
 
+/// <summary>Lecture des fichiers à l'intérieur d'un jar (métadonnées de mods).</summary>
 internal static class ZipHelpers
 {
     public static readonly JsonDocumentOptions LenientJson = new()
@@ -28,22 +29,6 @@ internal static class ZipHelpers
     {
         using var reader = new StreamReader(entry.Open());
         return reader.ReadToEnd();
-    }
-
-    /// <summary>Jars placés directement dans "{overridesDir}/mods/" (sans sous-dossier).</summary>
-    public static IEnumerable<ZipArchiveEntry> EmbeddedJars(ZipArchive archive, string overridesDir)
-    {
-        var prefix = overridesDir.Trim('/') + "/mods/";
-        foreach (var entry in archive.Entries)
-        {
-            var path = Normalize(entry.FullName);
-            if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                && path.EndsWith(".jar", StringComparison.OrdinalIgnoreCase)
-                && path.IndexOf('/', prefix.Length) < 0)
-            {
-                yield return entry;
-            }
-        }
     }
 
     public static string? GetString(this JsonElement element, string property) =>

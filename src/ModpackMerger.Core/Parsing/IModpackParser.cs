@@ -1,11 +1,10 @@
-using System.IO.Compression;
 using ModpackMerger.Core.Models;
 
 namespace ModpackMerger.Core.Parsing;
 
 public interface IModpackParser
 {
-    bool CanParse(ZipArchive archive);
+    bool CanParse(IPackFileSystem pack);
 
-    ModpackInfo Parse(ZipArchive archive, string sourcePath);
+    ModpackInfo Parse(IPackFileSystem pack, string sourcePath);
 }

@@ -1,4 +1,5 @@
 using System.Windows;
+using ModpackMerger.App.Animations;
 using ModpackMerger.App.Services;
 using ModpackMerger.App.ViewModels;
 
@@ -9,6 +10,7 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        Anim.RegisterButtonPressFeedback();
 
         DispatcherUnhandledException += (_, args) =>
         {
@@ -23,9 +25,9 @@ public partial class App : Application
         var window = new MainWindow(viewModel);
         MainWindow = window;
 
-        // Permet "Ouvrir avec…" depuis l'explorateur : ModpackMerger.App.exe chemin\du\pack.mrpack
+        // Permet "Ouvrir avec…" depuis l'explorateur : ModpackMerger.exe <archive ou dossier>
         if (e.Args is [var packPath, ..])
-            window.Loaded += async (_, _) => await viewModel.ImportFileAsync(packPath);
+            window.Loaded += async (_, _) => await viewModel.ImportAsync(packPath);
 
         window.Show();
     }

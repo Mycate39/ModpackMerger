@@ -1,7 +1,7 @@
-using System.IO.Compression;
 using System.Security.Cryptography;
 using ModpackMerger.Core.Metadata;
 using ModpackMerger.Core.Models;
+using ModpackMerger.Core.Parsing;
 
 namespace ModpackMerger.Core.Download;
 
@@ -47,20 +47,22 @@ public sealed class ModDownloader(HttpClient http, string cacheDirectory, int ma
             }
         }
 
-        // Les jars embarqués sont extraits séquentiellement (ZipArchive n'est pas thread-safe).
+        // Les jars présents dans le pack (archive ou dossier) sont copiés dans le cache, séquentiellement.
         var embedded = mods.Where(m => m.Source == ModSource.Embedded).ToList();
         if (embedded.Count > 0)
         {
-            using var archive = ZipFile.OpenRead(pack.SourcePath);
+            using var fs = PackFileSystem.Open(pack.SourcePath);
             foreach (var mod in embedded)
             {
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    var entry = archive.GetEntry(mod.ArchiveEntryPath!)
-                        ?? throw new FileNotFoundException("Entrée absente de l'archive.");
-                    var target = CachePath(mod, entry.Name);
-                    entry.ExtractToFile(target, overwrite: true);
+                    var file = fs.Find(mod.ArchiveEntryPath!)
+                        ?? throw new FileNotFoundException("Fichier absent du pack.");
+                    var target = CachePath(mod, file.Name);
+                    using (var input = fs.Open(file.Path))
+                    using (var output = File.Create(target))
+                        input.CopyTo(output);
                     Done(mod, Inspect(mod, target), null);
                 }
                 catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)

@@ -1,19 +1,24 @@
 # Modpack Merger
 
-Application Windows (WPF, .NET 10) qui importe un modpack public (CurseForge `.zip` ou Modrinth `.mrpack`), liste ses mods, permet d'en exclure certains, puis les injecte dans le dossier `mods` d'un modpack personnel en gérant les doublons.
+Application Windows 11 (WPF, .NET 10, thème Fluent) qui importe un modpack — archive CurseForge `.zip`, Modrinth `.mrpack`, ou **dossier classique** — liste ses mods, permet d'en exclure certains, puis les injecte dans le dossier `mods` d'un modpack personnel en gérant les doublons.
 
 ## Lancer
 
 ```powershell
 dotnet run --project src/ModpackMerger.App            # application
-dotnet run --project src/ModpackMerger.App -- pack.mrpack     # ouvre directement un pack
+dotnet run --project src/ModpackMerger.App -- pack.mrpack     # ouvre directement un pack (archive ou dossier)
 dotnet test                                            # tests du cœur métier
 dotnet publish src/ModpackMerger.App -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
 ```
 
 ## Utilisation
 
-1. **Importer** un `.zip` / `.mrpack` (bouton ou glisser-déposer). Les noms des mods sont résolus en ligne.
+1. **Importer** le modpack source (boutons *Choisir un fichier* / *Choisir un dossier*, ou glisser-déposer sur la fenêtre) :
+   - archive CurseForge `.zip` ou Modrinth `.mrpack` ;
+   - dossier d'instance CurseForge App, Prism / MultiMC (`.minecraft/mods`), `.minecraft` classique ;
+   - dossier `mods` directement, ou modpack décompressé (manifest + `overrides`).
+
+   Pour un dossier, ce sont les jars réellement présents qui sont pris (les `.jar.disabled` sont ignorés).
 2. Choisir le **dossier cible** (le dossier de l'instance ou directement son sous-dossier `mods`).
 3. Décocher les mods à exclure, puis **Analyser** : téléchargement dans un cache local + comparaison avec le dossier cible.
 4. Dans l'onglet *Doublons*, choisir pour chaque conflit *Remplacer*, *Ignorer* ou *Garder les deux*, puis **Injecter**.
@@ -26,12 +31,13 @@ Les fichiers remplacés ne sont jamais supprimés : ils sont déplacés dans `�
 src/
   ModpackMerger.Core/        Bibliothèque sans dépendance UI (testable)
     Models/                  ModpackInfo, ModEntry, JarMetadata
-    Parsing/                 ModpackReader → CurseForgeParser | ModrinthParser
+    Parsing/                 ModpackReader → CurseForgeParser | ModrinthParser | FolderParser (sur IPackFileSystem : zip ou dossier)
     Resolution/              CurseForgeResolver, ModrinthResolver (noms, URLs, hashes)
     Download/                ModDownloader (cache %LocalAppData%\ModpackMerger\cache, vérif. SHA-1/512)
     Metadata/                JarMetadataReader (fabric.mod.json, quilt.mod.json, mods.toml, neoforge.mods.toml, mcmod.info)
     Injection/               ConflictAnalyzer, VersionComparer, ModInjector
   ModpackMerger.App/         WPF + MVVM (CommunityToolkit.Mvvm), thème Fluent natif
+    Animations/              propriétés attachées d'animation (entrée, survol, transitions…)
     ViewModels/  Views/  Services/  Converters/
 tests/
   ModpackMerger.Core.Tests/  xUnit, archives et jars synthétiques
@@ -51,6 +57,10 @@ Le nom de fichier change souvent d'une version à l'autre (`JEI_Forge_v15.2.jar`
 **Tous** les fichiers correspondants sont remplacés ensemble (ex. deux anciennes versions présentes par erreur). Un mod `.jar.disabled` reste désactivé après mise à jour. Le remplacement copie d'abord la nouvelle version, puis déplace les anciennes en sauvegarde, avec retour arrière en cas d'erreur.
 
 Les versions sont comparées par `VersionComparer` (`1.2.10 > 1.2.9`, `1.0 > 1.0-beta`, métadonnées `+build`). Par défaut : plus récent → *Remplacer* ; plus ancien, identique ou incertain → *Ignorer*. Une correspondance via `provides` (mod alternatif) est toujours marquée « version différente », à arbitrer.
+
+### Interface
+
+Navigation latérale façon Paramètres de Windows 11, thème clair/sombre suivant le système, icônes Segoe Fluent. Animations : apparition échelonnée des cartes, transitions de page, indicateur de navigation qui glisse, cartes qui se soulèvent au survol, lignes des tableaux en cascade, compteurs qui pulsent, boutons qui s'enfoncent au clic, notifications (InfoBar) qui glissent, superposition animée au glisser-déposer.
 
 ### CurseForge et clé API
 

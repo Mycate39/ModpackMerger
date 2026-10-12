@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Text.Json;
 using ModpackMerger.Core.Models;
 
@@ -10,11 +9,11 @@ namespace ModpackMerger.Core.Parsing;
 /// </summary>
 public sealed class CurseForgeParser : IModpackParser
 {
-    public bool CanParse(ZipArchive archive) => ZipHelpers.Find(archive, "manifest.json") is not null;
+    public bool CanParse(IPackFileSystem pack) => pack.Find("manifest.json") is not null;
 
-    public ModpackInfo Parse(ZipArchive archive, string sourcePath)
+    public ModpackInfo Parse(IPackFileSystem pack, string sourcePath)
     {
-        using var doc = ZipHelpers.ReadJson(ZipHelpers.Find(archive, "manifest.json")!);
+        using var doc = pack.ReadJson(pack.Find("manifest.json")!);
         var root = doc.RootElement;
 
         if (root.GetString("manifestType") is { } type && type != "minecraftModpack")
@@ -41,7 +40,7 @@ public sealed class CurseForgeParser : IModpackParser
         }
 
         var overrides = root.GetString("overrides") ?? "overrides";
-        mods.AddRange(ZipHelpers.EmbeddedJars(archive, overrides).Select(EmbeddedEntry));
+        mods.AddRange(pack.JarsIn(overrides.Trim('/') + "/mods").Select(EmbeddedEntry));
 
         string? mcVersion = null, loader = null;
         if (root.TryGetProperty("minecraft", out var minecraft))
@@ -68,12 +67,12 @@ public sealed class CurseForgeParser : IModpackParser
         };
     }
 
-    internal static ModEntry EmbeddedEntry(ZipArchiveEntry entry) => new()
+    internal static ModEntry EmbeddedEntry(PackFile file) => new()
     {
         Source = ModSource.Embedded,
-        DisplayName = ModNameFormatter.FromFileName(entry.Name),
-        FileName = entry.Name,
-        FileSize = entry.Length,
-        ArchiveEntryPath = entry.FullName,
+        DisplayName = ModNameFormatter.FromFileName(file.Name),
+        FileName = file.Name,
+        FileSize = file.Length,
+        ArchiveEntryPath = file.Path,
     };
 }

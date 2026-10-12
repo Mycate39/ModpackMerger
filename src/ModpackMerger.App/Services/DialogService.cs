@@ -7,9 +7,8 @@ namespace ModpackMerger.App.Services;
 public interface IDialogService
 {
     string? PickModpackFile();
-    string? PickFolder(string? initialDirectory);
+    string? PickFolder(string title, string? initialDirectory);
     bool Confirm(string title, string message);
-    void ShowError(string title, string message);
     string? EditApiKey(string? current);
 }
 
@@ -21,17 +20,17 @@ public sealed class DialogService : IDialogService
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Importer un modpack",
+            Title = "Importer un modpack (archive)",
             Filter = "Modpacks (*.zip, *.mrpack)|*.zip;*.mrpack|CurseForge (*.zip)|*.zip|Modrinth (*.mrpack)|*.mrpack",
         };
         return dialog.ShowDialog(Owner) == true ? dialog.FileName : null;
     }
 
-    public string? PickFolder(string? initialDirectory)
+    public string? PickFolder(string title, string? initialDirectory)
     {
         var dialog = new OpenFolderDialog
         {
-            Title = "Choisir le modpack personnel (dossier de l'instance ou son dossier « mods »)",
+            Title = title,
             InitialDirectory = initialDirectory ?? "",
         };
         return dialog.ShowDialog(Owner) == true ? dialog.FolderName : null;
@@ -39,9 +38,6 @@ public sealed class DialogService : IDialogService
 
     public bool Confirm(string title, string message) =>
         MessageBox.Show(Owner!, message, title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
-
-    public void ShowError(string title, string message) =>
-        MessageBox.Show(Owner!, message, title, MessageBoxButton.OK, MessageBoxImage.Error);
 
     public string? EditApiKey(string? current)
     {
