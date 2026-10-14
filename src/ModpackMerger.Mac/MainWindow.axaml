@@ -1,0 +1,619 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:ModpackMerger.Mac.ViewModels"
+        xmlns:ctl="using:ModpackMerger.Mac.Controls"
+        xmlns:conv="using:ModpackMerger.Mac.Converters"
+        mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="760"
+        x:Class="ModpackMerger.Mac.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Modpack Merger"
+        Width="1180" Height="760" MinWidth="900" MinHeight="580"
+        WindowStartupLocation="CenterScreen"
+        DragDrop.AllowDrop="True">
+
+    <Window.Styles>
+        <!-- Notification : glisse depuis la droite et s'estompe -->
+        <Style Selector="Border#Toast">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="RenderTransform" Value="translateX(40px)" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.25" />
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.4" Easing="CubicEaseOut" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border#Toast.open">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+            <Setter Property="RenderTransform" Value="translateX(0px)" />
+        </Style>
+        <Style Selector="Border#Toast ctl|Icon#ToastIcon">
+            <Setter Property="Data" Value="{StaticResource IconInfo}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border#Toast.success ctl|Icon#ToastIcon">
+            <Setter Property="Data" Value="{StaticResource IconSuccess}" />
+            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+        </Style>
+        <Style Selector="Border#Toast.warning ctl|Icon#ToastIcon">
+            <Setter Property="Data" Value="{StaticResource IconWarning}" />
+            <Setter Property="Foreground" Value="{DynamicResource CautionBrush}" />
+        </Style>
+        <Style Selector="Border#Toast.error ctl|Icon#ToastIcon">
+            <Setter Property="Data" Value="{StaticResource IconError}" />
+            <Setter Property="Foreground" Value="{DynamicResource CriticalBrush}" />
+        </Style>
+
+        <!-- Superposition de glisser-déposer -->
+        <Style Selector="Grid#DropOverlay">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.18" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Grid#DropOverlay.visible">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Grid#DropOverlay Border#DropCard">
+            <Setter Property="RenderTransform" Value="scale(0.88)" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.35" Easing="BackEaseOut" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Grid#DropOverlay.visible Border#DropCard">
+            <Setter Property="RenderTransform" Value="scale(1)" />
+        </Style>
+
+        <!-- Pastilles d'étape : numéro, puis coche verte une fois l'étape faite -->
+        <Style Selector="Border.step">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="CornerRadius" Value="15" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.step > TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.step.done">
+            <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+        </Style>
+
+        <Style Selector="TextBox.path">
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="MinHeight" Value="34" />
+        </Style>
+    </Window.Styles>
+
+    <Panel>
+        <Grid ColumnDefinitions="232,*">
+
+            <!-- ═══════════════ Barre latérale ═══════════════ -->
+            <Border Grid.Column="0" Background="{DynamicResource SidebarBrush}">
+                <!-- Sur Mac, les boutons de fenêtre (feux tricolores) se superposent au haut de la barre latérale. -->
+                <DockPanel Margin="{OnPlatform '10,10,10,12', macOS='10,40,10,12'}">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="8,4,0,18">
+                        <Image Source="avares://ModpackMerger/Assets/logo.png" Width="32" Height="32" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Modpack Merger" Classes="strong" />
+                            <TextBlock Text="Fusion de modpacks Minecraft" Classes="caption" FontSize="11" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel DockPanel.Dock="Bottom" Spacing="6">
+                        <!-- Bandeau de mise à jour -->
+                        <Border CornerRadius="10" Padding="12,10" Background="{DynamicResource AccentBrush}" Margin="0,0,0,6"
+                                IsVisible="{Binding IsUpdateAvailable}">
+                            <StackPanel Spacing="8">
+                                <DockPanel>
+                                    <ctl:Icon Data="{StaticResource IconDownload}" Foreground="White" VerticalAlignment="Top" Margin="0,1,10,0" />
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding UpdateTitle}" FontWeight="SemiBold" Foreground="White" />
+                                        <TextBlock Text="Nouvelle version prête à être installée." FontSize="11" Opacity="0.85" Foreground="White"
+                                                   TextWrapping="Wrap" IsVisible="{Binding !IsUpdating}" />
+                                        <TextBlock Text="Téléchargement…" FontSize="11" Opacity="0.85" Foreground="White"
+                                                   IsVisible="{Binding IsUpdating}" />
+                                    </StackPanel>
+                                </DockPanel>
+                                <ProgressBar Height="4" MinHeight="4" Maximum="1" Value="{Binding UpdateProgress}" Foreground="White"
+                                             IsVisible="{Binding IsUpdating}" />
+                                <Button Content="Mettre à jour" Command="{Binding InstallUpdateCommand}" HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center" IsVisible="{Binding !IsUpdating}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Button Command="{Binding OpenSettingsCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                Background="Transparent" BorderThickness="0" Padding="10,7" ToolTip.Tip="Réglages (⌘,)">
+                            <StackPanel Spacing="10">
+                                <ctl:Icon Data="{StaticResource IconSettings}" Foreground="{DynamicResource AccentBrush}" />
+                                <TextBlock Text="Réglages" />
+                            </StackPanel>
+                        </Button>
+                        <StackPanel Orientation="Horizontal" Margin="10,0,0,0" Spacing="4">
+                            <TextBlock Classes="caption" FontSize="11" VerticalAlignment="Center">
+                                <Run Text="Version" /> <Run Text="{x:Static vm:MainViewModel.AppVersion}" /> <Run Text="·" />
+                            </TextBlock>
+                            <HyperlinkButton Content="Mises à jour" Command="{Binding CheckForUpdatesCommand}" FontSize="11" Padding="0" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <ListBox Classes="nav" SelectedIndex="{Binding SelectedPage}">
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <ctl:Icon Data="{StaticResource IconPackage}" />
+                                <TextBlock Text="Configuration" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <DockPanel>
+                                <Border DockPanel.Dock="Right" Classes="badge" IsVisible="{Binding HasPack}">
+                                    <TextBlock Text="{Binding SelectedCount}" />
+                                </Border>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <ctl:Icon Data="{StaticResource IconList}" />
+                                    <TextBlock Text="Mods du pack" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DockPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <DockPanel>
+                                <Border DockPanel.Dock="Right" Classes="badge caution" IsVisible="{Binding HasConflicts}">
+                                    <TextBlock Text="{Binding ConflictCount}" />
+                                </Border>
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <ctl:Icon Data="{StaticResource IconMerge}" />
+                                    <TextBlock Text="Doublons &amp; plan" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DockPanel>
+                        </ListBoxItem>
+                        <ListBoxItem>
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <ctl:Icon Data="{StaticResource IconLog}" />
+                                <TextBlock Text="Journal" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- ═══════════════ Zone de contenu ═══════════════ -->
+            <Grid Grid.Column="1" RowDefinitions="*,Auto" Background="{DynamicResource ContentBrush}">
+                <Carousel Grid.Row="0" SelectedIndex="{Binding SelectedPage}">
+                    <Carousel.PageTransition>
+                        <CrossFade Duration="0:0:0.18" />
+                    </Carousel.PageTransition>
+
+                    <!-- ─────────── Page 0 : Configuration ─────────── -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="{OnPlatform '36,32,36,24', macOS='36,40,36,24'}" MaxWidth="980" Spacing="12">
+                            <StackPanel Margin="0,0,0,12">
+                                <TextBlock Text="Configuration" Classes="title" />
+                                <TextBlock Text="Choisis le modpack à fusionner et le modpack personnel qui recevra ses mods."
+                                           Classes="subtitle" Margin="0,4,0,0" />
+                            </StackPanel>
+
+                            <!-- Étape 1 : source -->
+                            <Border Classes="card lift">
+                                <StackPanel Spacing="16">
+                                    <DockPanel>
+                                        <Panel DockPanel.Dock="Left" Margin="0,0,16,0">
+                                            <Border Classes="step" IsVisible="{Binding !HasPack}">
+                                                <TextBlock Text="1" />
+                                            </Border>
+                                            <Border Classes="step done" IsVisible="{Binding HasPack}">
+                                                <ctl:Icon Data="{StaticResource IconCheck}" Foreground="White" StrokeThickness="2.4" />
+                                            </Border>
+                                        </Panel>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Modpack source" Classes="strong" FontSize="15" />
+                                            <TextBlock Text="Archive CurseForge (.zip), Modrinth (.mrpack), ou dossier : instance, dossier « mods », pack décompressé."
+                                                       Classes="caption" />
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <!-- Zone de dépôt (avant import) -->
+                                    <Panel IsVisible="{Binding !HasPack}">
+                                        <Rectangle RadiusX="10" RadiusY="10" StrokeThickness="1.5" StrokeDashArray="5,4"
+                                                   Stroke="{DynamicResource SecondaryTextBrush}" Opacity="0.6" Fill="{DynamicResource ContentBrush}" />
+                                        <StackPanel HorizontalAlignment="Center" Spacing="4" Margin="24,26">
+                                            <ctl:Icon Data="{StaticResource IconDownload}" Width="40" Height="40" StrokeThickness="1.5"
+                                                      Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
+                                            <TextBlock Text="Glisse un fichier .zip / .mrpack ou un dossier ici" Classes="strong"
+                                                       HorizontalAlignment="Center" Margin="0,10,0,0" />
+                                            <TextBlock Text="ou choisis-le manuellement" Classes="caption" HorizontalAlignment="Center" />
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8" Margin="0,12,0,0">
+                                                <Button Command="{Binding ImportFileCommand}" Classes="accent" Padding="14,7" ToolTip.Tip="⌘O">
+                                                    <StackPanel>
+                                                        <ctl:Icon Data="{StaticResource IconFile}" />
+                                                        <TextBlock Text="Choisir un fichier" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Command="{Binding ImportFolderCommand}" Padding="14,7" ToolTip.Tip="⇧⌘O">
+                                                    <StackPanel>
+                                                        <ctl:Icon Data="{StaticResource IconFolder}" />
+                                                        <TextBlock Text="Choisir un dossier" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Panel>
+
+                                    <!-- Pack importé -->
+                                    <DockPanel IsVisible="{Binding HasPack}">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                            <Button Command="{Binding ImportFileCommand}" ToolTip.Tip="Importer une autre archive">
+                                                <StackPanel>
+                                                    <ctl:Icon Data="{StaticResource IconFile}" />
+                                                    <TextBlock Text="Fichier…" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Command="{Binding ImportFolderCommand}" ToolTip.Tip="Importer un autre dossier">
+                                                <StackPanel>
+                                                    <ctl:Icon Data="{StaticResource IconFolder}" />
+                                                    <TextBlock Text="Dossier…" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                        <Border DockPanel.Dock="Left" Width="54" Height="54" CornerRadius="10" Margin="0,0,16,0"
+                                                Background="{DynamicResource NavHoverBrush}">
+                                            <Image Source="avares://ModpackMerger/Assets/logo.png" Width="32" Height="32" />
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center" Spacing="4">
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <TextBlock Text="{Binding PackTitle}" Classes="strong" FontSize="17" TextTrimming="CharacterEllipsis" />
+                                                <Border Classes="badge" Height="20" CornerRadius="10" Padding="8,0">
+                                                    <TextBlock Text="{Binding PackFormatLabel}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding PackDetails}" Classes="caption" />
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <!-- Chemin saisi ou collé (dossier ou archive), validé par Entrée ou le bouton -->
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Command="{Binding ImportPathCommand}" Margin="8,0,0,0">
+                                            <StackPanel>
+                                                <ctl:Icon Data="{StaticResource IconDownload}" />
+                                                <TextBlock Text="Importer" />
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBox x:Name="SourcePathBox" Classes="path" Text="{Binding SourcePathInput}"
+                                                 Watermark="…ou colle ici le chemin d'un dossier ou d'une archive, puis Entrée"
+                                                 ToolTip.Tip="Dans le Finder : clic droit sur le fichier en maintenant ⌥, « Copier … en tant que nom de chemin »">
+                                            <TextBox.KeyBindings>
+                                                <KeyBinding Gesture="Enter" Command="{Binding ImportPathCommand}" />
+                                            </TextBox.KeyBindings>
+                                            <TextBox.InnerLeftContent>
+                                                <ctl:Icon Data="{StaticResource IconFolder}" Margin="10,0,0,0" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                            </TextBox.InnerLeftContent>
+                                        </TextBox>
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Étape 2 : cible -->
+                            <Border Classes="card lift">
+                                <StackPanel Spacing="16">
+                                    <DockPanel>
+                                        <Panel DockPanel.Dock="Left" Margin="0,0,16,0">
+                                            <Border Classes="step" IsVisible="{Binding !HasTarget}">
+                                                <TextBlock Text="2" />
+                                            </Border>
+                                            <Border Classes="step done" IsVisible="{Binding HasTarget}">
+                                                <ctl:Icon Data="{StaticResource IconCheck}" Foreground="White" StrokeThickness="2.4" />
+                                            </Border>
+                                        </Panel>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Modpack personnel" Classes="strong" FontSize="15" />
+                                            <TextBlock Text="Le dossier « mods » de ton instance (lanceur Minecraft, CurseForge, Prism, MultiMC…). Le dossier de l'instance fonctionne aussi."
+                                                       Classes="caption" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Command="{Binding OpenTargetFolderCommand}" Margin="6,0,0,0"
+                                                ToolTip.Tip="Afficher dans le Finder">
+                                            <ctl:Icon Data="{StaticResource IconOpen}" />
+                                        </Button>
+                                        <Button DockPanel.Dock="Right" Command="{Binding BrowseTargetCommand}" Margin="8,0,0,0" ToolTip.Tip="⌘T">
+                                            <StackPanel>
+                                                <ctl:Icon Data="{StaticResource IconFolder}" />
+                                                <TextBlock Text="Parcourir…" />
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBox Classes="path" Text="{Binding TargetFolder}" Watermark="{x:Static vm:MainViewModel.TargetWatermark}" />
+                                    </DockPanel>
+                                    <Button Command="{Binding UseMinecraftFolderCommand}" Padding="0" Background="Transparent" BorderThickness="0"
+                                            IsVisible="{Binding !HasTarget}" ToolTip.Tip="~/Library/Application Support/minecraft/mods">
+                                        <StackPanel>
+                                            <ctl:Icon Data="{StaticResource IconPackage}" Foreground="{DynamicResource AccentBrush}" />
+                                            <TextBlock Text="Utiliser le dossier mods du lanceur Minecraft officiel" Foreground="{DynamicResource AccentBrush}" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Étape suivante -->
+                            <Border Classes="card">
+                                <Panel>
+                                    <DockPanel IsVisible="{Binding HasTarget}">
+                                        <Button DockPanel.Dock="Right" Command="{Binding NavigateCommand}" CommandParameter="1"
+                                                Classes="accent" IsEnabled="{Binding HasPack}">
+                                            <StackPanel>
+                                                <TextBlock Text="Choisir les mods" />
+                                                <ctl:Icon Data="{StaticResource IconArrowRight}" Foreground="White" />
+                                            </StackPanel>
+                                        </Button>
+                                        <ctl:Icon Data="{StaticResource IconList}" Width="20" Height="20" Margin="0,0,16,0"
+                                                  Foreground="{DynamicResource AccentBrush}" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Étape 3 · Sélection des mods" Classes="strong" />
+                                            <TextBlock Text="Décoche les mods à exclure, puis lance l'analyse des doublons." Classes="caption" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <DockPanel IsVisible="{Binding !HasTarget}">
+                                        <ctl:Icon Data="{StaticResource IconList}" Width="20" Height="20" Margin="0,0,16,0" Opacity="0.6"
+                                                  Foreground="{DynamicResource SecondaryTextBrush}" />
+                                        <TextBlock Text="Complète les étapes 1 et 2 pour continuer." Classes="caption" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Panel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- ─────────── Page 1 : Mods du pack ─────────── -->
+                    <Grid Margin="{OnPlatform '36,32,36,16', macOS='36,40,36,16'}" RowDefinitions="Auto,Auto,*">
+                        <DockPanel Grid.Row="0" Margin="0,0,0,18">
+                            <Border DockPanel.Dock="Right" Classes="badge" Height="26" CornerRadius="13" Padding="12,0" IsVisible="{Binding HasPack}">
+                                <TextBlock FontSize="12">
+                                    <Run Text="{Binding SelectedCount}" /><Run Text=" sélectionnés" />
+                                </TextBlock>
+                            </Border>
+                            <StackPanel>
+                                <TextBlock Text="Mods du pack" Classes="title" />
+                                <TextBlock Text="{Binding SelectionSummary}" Classes="subtitle" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </DockPanel>
+
+                        <DockPanel Grid.Row="1" Margin="0,0,0,12" IsVisible="{Binding HasPack}">
+                            <Button DockPanel.Dock="Right" Command="{Binding SelectNoneCommand}" Margin="6,0,0,0">
+                                <StackPanel>
+                                    <ctl:Icon Data="{StaticResource IconClose}" />
+                                    <TextBlock Text="Tout décocher" />
+                                </StackPanel>
+                            </Button>
+                            <Button DockPanel.Dock="Right" Command="{Binding SelectAllCommand}" Margin="12,0,0,0">
+                                <StackPanel>
+                                    <ctl:Icon Data="{StaticResource IconCheck}" />
+                                    <TextBlock Text="Tout cocher" />
+                                </StackPanel>
+                            </Button>
+                            <TextBox Text="{Binding SearchText}" Watermark="Rechercher un mod" MaxWidth="400" HorizontalAlignment="Left"
+                                     Width="400" Classes="path"
+                                     ToolTip.Tip="Filtrer par nom ou fichier (cocher/décocher n'agit que sur les mods affichés)">
+                                <TextBox.InnerLeftContent>
+                                    <ctl:Icon Data="{StaticResource IconSearch}" Margin="10,0,0,0" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                </TextBox.InnerLeftContent>
+                            </TextBox>
+                        </DockPanel>
+
+                        <Border Grid.Row="2" Classes="card" Padding="0" ClipToBounds="True" IsVisible="{Binding HasPack}">
+                            <DataGrid ItemsSource="{Binding ModsView}" x:CompileBindings="False" AutoGenerateColumns="False"
+                                      CanUserReorderColumns="False" RowHeight="38" SelectionMode="Extended">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="" Width="52" SortMemberPath="IsSelected">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <CheckBox IsChecked="{Binding IsSelected}" HorizontalAlignment="Center" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Mod" Binding="{Binding DisplayName}" Width="2*" MinWidth="160" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="*" MinWidth="90" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Fichier" Binding="{Binding FileName}" Width="2*" MinWidth="160" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Source" Binding="{Binding SourceLabel}" Width="160" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Remarques" Binding="{Binding Notes}" Width="140" IsReadOnly="True" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+
+                        <!-- État vide -->
+                        <StackPanel Grid.Row="1" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4"
+                                    IsVisible="{Binding !HasPack}">
+                            <ctl:Icon Data="{StaticResource IconPackage}" Width="56" Height="56" StrokeThickness="1.3"
+                                      Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Text="Aucun modpack importé" Classes="strong" FontSize="17" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                            <TextBlock Text="Importe un modpack pour voir ses mods ici." Classes="caption" HorizontalAlignment="Center" />
+                            <Button Command="{Binding NavigateCommand}" CommandParameter="0" Classes="accent" HorizontalAlignment="Center"
+                                    Margin="0,16,0,0" Content="Aller à la configuration" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- ─────────── Page 2 : Doublons & plan ─────────── -->
+                    <Grid Margin="{OnPlatform '36,32,36,16', macOS='36,40,36,16'}" RowDefinitions="Auto,Auto,*">
+                        <StackPanel Grid.Row="0" Margin="0,0,0,18">
+                            <TextBlock Text="Doublons &amp; plan d'injection" Classes="title" />
+                            <TextBlock Text="{Binding PlanSummary}" Classes="subtitle" Margin="0,4,0,0" />
+                        </StackPanel>
+
+                        <DockPanel Grid.Row="1" Margin="0,0,0,12" IsVisible="{Binding HasPlan}">
+                            <Button DockPanel.Dock="Right" Command="{Binding SkipAllConflictsCommand}" Margin="6,0,0,0">
+                                <StackPanel>
+                                    <ctl:Icon Data="{StaticResource IconSkip}" />
+                                    <TextBlock Text="Ignorer tous les doublons" />
+                                </StackPanel>
+                            </Button>
+                            <Button DockPanel.Dock="Right" Command="{Binding ReplaceAllConflictsCommand}">
+                                <StackPanel>
+                                    <ctl:Icon Data="{StaticResource IconSwap}" />
+                                    <TextBlock Text="Remplacer tous les doublons" />
+                                </StackPanel>
+                            </Button>
+                            <Border HorizontalAlignment="Left" CornerRadius="8" Padding="12,6"
+                                    Background="{DynamicResource CautionBackgroundBrush}" IsVisible="{Binding HasConflicts}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <ctl:Icon Data="{StaticResource IconWarning}" Foreground="{DynamicResource CautionBrush}" />
+                                    <TextBlock VerticalAlignment="Center">
+                                        <Run Text="{Binding ConflictCount}" FontWeight="SemiBold" /><Run Text=" doublon(s) : choisis l'action de chacun" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </DockPanel>
+
+                        <Border Grid.Row="2" Classes="card" Padding="0" ClipToBounds="True" IsVisible="{Binding HasPlan}">
+                            <DataGrid ItemsSource="{Binding Plan}" x:CompileBindings="False" AutoGenerateColumns="False"
+                                      CanUserReorderColumns="False">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Mod" Binding="{Binding Name}" Width="1.6*" MinWidth="130" IsReadOnly="True" />
+                                    <DataGridTemplateColumn Header="Statut" Width="200" SortMemberPath="Kind">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Border Classes="pill" Classes.new="{Binding IsNew}" Classes.conflict="{Binding IsConflict}">
+                                                    <TextBlock Text="{Binding Kind, Converter={x:Static conv:EnumLabelConverter.Instance}}" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Entrante" Binding="{Binding IncomingVersion}" Width="90" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Existante" Binding="{Binding ExistingVersion}" Width="90" IsReadOnly="True" />
+                                    <DataGridTextColumn Header="Fichier(s) existant(s)" Binding="{Binding ExistingFile}" Width="2*" MinWidth="120" IsReadOnly="True" />
+                                    <DataGridTemplateColumn Header="Action" Width="170">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <ComboBox ItemsSource="{Binding AvailableActions}" SelectedItem="{Binding Action}"
+                                                          IsEnabled="{Binding CanChangeAction}" Margin="4,4,10,4" VerticalAlignment="Center"
+                                                          HorizontalAlignment="Stretch">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Converter={x:Static conv:EnumLabelConverter.Instance}}" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+
+                        <!-- État vide -->
+                        <StackPanel Grid.Row="1" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4"
+                                    IsVisible="{Binding !HasPlan}">
+                            <ctl:Icon Data="{StaticResource IconMerge}" Width="56" Height="56" StrokeThickness="1.3"
+                                      Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Text="Pas encore d'analyse" Classes="strong" FontSize="17" HorizontalAlignment="Center" Margin="0,16,0,0" />
+                            <TextBlock Text="Lance l'analyse pour comparer ta sélection avec ton modpack personnel." Classes="caption" HorizontalAlignment="Center" />
+                            <Button Command="{Binding AnalyzeCommand}" Classes="accent" HorizontalAlignment="Center" Margin="0,16,0,0">
+                                <StackPanel>
+                                    <ctl:Icon Data="{StaticResource IconSearch}" Foreground="White" />
+                                    <TextBlock Text="Analyser maintenant" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- ─────────── Page 3 : Journal ─────────── -->
+                    <Grid Margin="{OnPlatform '36,32,36,16', macOS='36,40,36,16'}" RowDefinitions="Auto,*">
+                        <StackPanel Margin="0,0,0,18">
+                            <TextBlock Text="Journal" Classes="title" />
+                            <TextBlock Text="Historique détaillé des opérations de cette session." Classes="subtitle" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Border Grid.Row="1" Classes="card" Padding="4">
+                            <ScrollViewer x:Name="LogScroll" Padding="12" HorizontalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Log}" FontFamily="Menlo, SF Mono, Cascadia Mono, Consolas, monospace" FontSize="12">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <SelectableTextBlock Text="{Binding}" Margin="0,2" Foreground="{DynamicResource SecondaryTextBrush}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
+                </Carousel>
+
+                <!-- ─────────── Barre de commandes ─────────── -->
+                <Border Grid.Row="1" Classes="card" Margin="36,0,36,22" Padding="18,12">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" Margin="16,0,0,0">
+                            <Button Command="{Binding CancelCommand}" IsVisible="{Binding IsBusy}" ToolTip.Tip="⌘.">
+                                <StackPanel>
+                                    <ctl:Icon Data="{StaticResource IconClose}" />
+                                    <TextBlock Text="Annuler" />
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding AnalyzeCommand}" ToolTip.Tip="Récupère les mods sélectionnés et les compare au dossier cible (⌘R)">
+                                <StackPanel>
+                                    <ctl:Icon Data="{StaticResource IconSearch}" />
+                                    <TextBlock Text="Analyser" />
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding InjectCommand}" Classes="accent" ToolTip.Tip="Copie les mods dans le dossier cible selon le plan (⌘I)">
+                                <StackPanel>
+                                    <ctl:Icon Data="{StaticResource IconDownload}" Foreground="White" />
+                                    <TextBlock Text="Injecter" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center" Spacing="8">
+                            <TextBlock Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" />
+                            <ProgressBar Height="4" MinHeight="4" Maximum="{Binding ProgressMaximum}" Value="{Binding ProgressValue}"
+                                         IsIndeterminate="{Binding IsProgressIndeterminate}" IsVisible="{Binding IsBusy}" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ═══════════════ Notification ═══════════════ -->
+        <Border x:Name="Toast" Width="380" Margin="0,24,24,0" HorizontalAlignment="Right" VerticalAlignment="Top"
+                CornerRadius="12" BorderThickness="1" Padding="16,14"
+                Background="{DynamicResource ToastBrush}" BorderBrush="{DynamicResource CardStrokeBrush}"
+                BoxShadow="0 10 30 0 #33000000"
+                Classes.open="{Binding IsNotificationOpen}"
+                Classes.success="{Binding NotificationSeverity, Converter={x:Static conv:EqualsConverter.Instance}, ConverterParameter=Success}"
+                Classes.warning="{Binding NotificationSeverity, Converter={x:Static conv:EqualsConverter.Instance}, ConverterParameter=Warning}"
+                Classes.error="{Binding NotificationSeverity, Converter={x:Static conv:EqualsConverter.Instance}, ConverterParameter=Error}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Command="{Binding CloseNotificationCommand}" Padding="4" VerticalAlignment="Top"
+                        Background="Transparent" BorderThickness="0" Margin="8,-2,-4,0">
+                    <ctl:Icon Data="{StaticResource IconClose}" Width="12" Height="12" Foreground="{DynamicResource SecondaryTextBrush}" />
+                </Button>
+                <ctl:Icon x:Name="ToastIcon" DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,12,0" VerticalAlignment="Top" />
+                <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding NotificationTitle}" Classes="strong" />
+                    <TextBlock Text="{Binding NotificationMessage}" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ═══════════════ Superposition de glisser-déposer ═══════════════ -->
+        <Grid x:Name="DropOverlay" Background="{DynamicResource SmokeBrush}">
+            <Border x:Name="DropCard" Width="440" Height="250" CornerRadius="16" Padding="10"
+                    Background="{DynamicResource ToastBrush}" BoxShadow="0 20 50 0 #44000000">
+                <Panel>
+                    <Rectangle RadiusX="10" RadiusY="10" StrokeThickness="2" StrokeDashArray="6,4" Stroke="{DynamicResource AccentBrush}" />
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="4">
+                        <ctl:Icon Data="{StaticResource IconDownload}" Width="52" Height="52" StrokeThickness="1.5"
+                                  Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="Dépose pour importer" Classes="strong" FontSize="19" HorizontalAlignment="Center" Margin="0,14,0,0" />
+                        <TextBlock Text="Archive .zip / .mrpack ou dossier de modpack" Classes="caption" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Panel>
+            </Border>
+        </Grid>
+    </Panel>
+</Window>

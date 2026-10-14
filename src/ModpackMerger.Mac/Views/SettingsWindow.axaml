@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="using:ModpackMerger.Mac.Controls"
+        x:Class="ModpackMerger.Mac.Views.SettingsWindow"
+        Title="Réglages" Width="540" SizeToContent="Height" CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="24,20,24,18" Spacing="12">
+        <TextBlock Text="Réglages" Classes="title" FontSize="22" Margin="0,0,0,6" />
+
+        <!-- Mises à jour -->
+        <Border Classes="card" Padding="18,16">
+            <DockPanel>
+                <ctl:Icon Data="{StaticResource IconDownload}" Width="18" Height="18" VerticalAlignment="Top" Margin="0,1,14,0"
+                          Foreground="{DynamicResource AccentBrush}" />
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Mises à jour" Classes="strong" />
+                    <TextBlock x:Name="VersionText" Classes="caption" />
+                    <CheckBox x:Name="CheckUpdatesBox" Content="Rechercher les mises à jour au démarrage" Margin="0,6,0,0" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Clé API CurseForge -->
+        <Border Classes="card" Padding="18,16">
+            <DockPanel>
+                <ctl:Icon Data="{StaticResource IconSettings}" Width="18" Height="18" VerticalAlignment="Top" Margin="0,1,14,0"
+                          Foreground="{DynamicResource AccentBrush}" />
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Clé API CurseForge (optionnelle)" Classes="strong" />
+                    <TextBlock Classes="caption"
+                               Text="Sans clé, les mods CurseForge sont téléchargés via le lien public et leurs noms sont déduits des fichiers. Avec une clé gratuite, les noms exacts s'affichent dès l'import." />
+                    <HyperlinkButton Content="Obtenir une clé sur console.curseforge.com" NavigateUri="https://console.curseforge.com" Padding="0" />
+                    <TextBox x:Name="KeyBox" PasswordChar="•" Watermark="Clé API" Margin="0,6,0,0" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,6,0,0">
+            <Button Content="Annuler" IsCancel="True" MinWidth="90" HorizontalContentAlignment="Center" Click="OnCancel" />
+            <Button Content="Enregistrer" IsDefault="True" Classes="accent" MinWidth="90" HorizontalContentAlignment="Center" Click="OnSave" />
+        </StackPanel>
+    </StackPanel>
+</Window>

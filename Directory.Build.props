@@ -1,0 +1,6 @@
+<Project>
+  <!-- Version commune aux applications Windows et macOS (le tag de release GitHub doit être vX.Y.Z). -->
+  <PropertyGroup>
+    <Version>1.2.0-beta</Version>
+  </PropertyGroup>
+</Project>

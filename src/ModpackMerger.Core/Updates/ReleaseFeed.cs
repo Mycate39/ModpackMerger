@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using ModpackMerger.Core.Injection;
 using ModpackMerger.Core.Parsing;
 
@@ -14,10 +14,12 @@ public static class ReleaseFeed
 
     /// <summary>
     /// Renvoie la mise à jour si la release est publiée (ni brouillon ni pre-release), plus récente que
-    /// <paramref name="currentVersion"/> et fournit un installeur .exe ; sinon null.
+    /// <paramref name="currentVersion"/> et fournit le fichier attendu (par défaut l'installeur Windows .exe) ; sinon null.
     /// </summary>
-    public static UpdateInfo? Parse(string json, string currentVersion)
+    /// <param name="isWantedAsset">Choisit le fichier joint selon son nom (ex. zip macOS de la bonne architecture).</param>
+    public static UpdateInfo? Parse(string json, string currentVersion, Func<string, bool>? isWantedAsset = null)
     {
+        isWantedAsset ??= name => name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
@@ -29,7 +31,7 @@ public static class ReleaseFeed
 
         if (!root.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array) return null;
         var installer = assets.EnumerateArray().FirstOrDefault(a =>
-            a.GetString("name") is { } name && name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+            a.GetString("name") is { } name && isWantedAsset(name));
         if (installer.ValueKind != JsonValueKind.Object || installer.GetString("browser_download_url") is not { } url) return null;
 
         // GitHub fournit "digest": "sha256:<hex>" pour chaque fichier joint.

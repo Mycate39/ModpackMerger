@@ -17,7 +17,6 @@
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <AssemblyName>ModpackMerger</AssemblyName>
     <Product>Modpack Merger</Product>
-    <Version>1.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

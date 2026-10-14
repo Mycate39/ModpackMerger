@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctl="using:ModpackMerger.Mac.Controls"
+        x:Class="ModpackMerger.Mac.Views.ConfirmWindow"
+        Width="440" SizeToContent="Height" CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+    <!-- Alerte façon macOS : icône, titre en gras, message, boutons à droite -->
+    <StackPanel Margin="24,22,24,18" Spacing="16">
+        <DockPanel>
+            <Image Source="avares://ModpackMerger/Assets/logo.png" Width="48" Height="48" VerticalAlignment="Top" Margin="0,0,16,0" />
+            <StackPanel Spacing="6">
+                <TextBlock x:Name="Heading" Classes="strong" FontSize="15" TextWrapping="Wrap" />
+                <SelectableTextBlock x:Name="Message" TextWrapping="Wrap" FontSize="13" />
+            </StackPanel>
+        </DockPanel>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button x:Name="NoButton" Content="Annuler" IsCancel="True" MinWidth="90" HorizontalContentAlignment="Center" Click="OnNo" />
+            <Button x:Name="YesButton" Content="Continuer" IsDefault="True" Classes="accent" MinWidth="90" HorizontalContentAlignment="Center" Click="OnYes" />
+        </StackPanel>
+    </StackPanel>
+</Window>

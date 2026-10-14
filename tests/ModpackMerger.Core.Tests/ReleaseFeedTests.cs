@@ -1,4 +1,4 @@
-using ModpackMerger.Core.Updates;
+﻿using ModpackMerger.Core.Updates;
 
 namespace ModpackMerger.Core.Tests;
 
@@ -47,5 +47,17 @@ public sealed class ReleaseFeedTests
         Assert.Null(ReleaseFeed.Parse(Release("v2.0.0", prerelease: true), "1.0.0"));
         Assert.Null(ReleaseFeed.Parse(Release("v2.0.0", draft: true), "1.0.0"));
         Assert.Null(ReleaseFeed.Parse(Release("v2.0.0", assetName: "ModpackMerger.zip"), "1.0.0"));
+    }
+
+    [Fact]
+    public void Selects_the_asset_matching_the_filter()
+    {
+        static bool MacArm(string name) => name.EndsWith("-macos-arm64.zip", StringComparison.OrdinalIgnoreCase);
+
+        var update = ReleaseFeed.Parse(Release("v1.2.0", assetName: "ModpackMerger-1.2.0-macos-arm64.zip"), "1.1.0", MacArm);
+        Assert.NotNull(update);
+        Assert.EndsWith("macos-arm64.zip", update.DownloadUrl);
+
+        Assert.Null(ReleaseFeed.Parse(Release("v1.2.0"), "1.1.0", MacArm));
     }
 }

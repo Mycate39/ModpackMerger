@@ -8,6 +8,14 @@ Télécharge `ModpackMerger-Setup-x.y.z.exe` depuis les [releases](https://githu
 
 **Mise à jour automatique** : au démarrage, l'app vérifie la dernière release stable sur GitHub (désactivable dans *Réglages*, ou manuellement via *Rechercher les mises à jour*). Si une version plus récente existe, un bandeau propose de l'installer : l'installeur est téléchargé, son empreinte SHA-256 vérifiée, puis l'app se remplace et redémarre. Pour publier une mise à jour, il suffit de créer une release GitHub (non pre-release) avec un tag `vX.Y.Z` plus élevé et l'installeur `.exe` en pièce jointe. Désinstallation : *Paramètres › Applications › Modpack Merger*. Le bouton *Utiliser sans installer* (ou l'argument `--portable`) lance l'app sans l'installer.
 
+### macOS
+
+Télécharge `ModpackMerger-x.y.z-macos-arm64.zip` (Apple Silicon) ou `-macos-x64.zip` (Intel) depuis les [releases](https://github.com/Mycate39/ModpackMerger/releases), décompresse-le et glisse **Modpack Merger** dans *Applications* (macOS 14 ou plus récent).
+
+L'application n'étant pas signée par un compte développeur Apple, macOS bloque le premier lancement : ouvre *Réglages Système › Confidentialité et sécurité* et clique sur *Ouvrir quand même* (une seule fois). Les mises à jour suivantes s'installent depuis l'app, sans repasser par là.
+
+Spécificités Mac : barre de menus native (⌘O importer, ⌘, réglages, ⌘R analyser, ⌘I injecter, ⌘1…4 pages), « Ouvrir avec » et glisser un pack sur l'icône du Dock, bouton pour cibler directement `~/Library/Application Support/minecraft/mods`. Réglages dans `~/Library/Application Support/ModpackMerger/`, cache dans `~/Library/Caches/ModpackMerger/`.
+
 ## Développement
 
 ```powershell
@@ -15,7 +23,11 @@ dotnet run --project src/ModpackMerger.App            # application
 dotnet run --project src/ModpackMerger.App -- pack.mrpack     # ouvre directement un pack (archive ou dossier)
 dotnet test                                            # tests du cœur métier
 dotnet publish src/ModpackMerger.App -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+dotnet run --project src/ModpackMerger.Mac              # version macOS (Avalonia, se lance aussi sous Windows)
+bash build/macos/package.sh arm64                       # sur un Mac : dist/ModpackMerger-x.y.z-macos-arm64.zip
 ```
+
+La version est définie une seule fois dans `Directory.Build.props`. Publier une release GitHub `vX.Y.Z` déclenche le workflow `macOS` (`.github/workflows/macos.yml`), qui construit les deux zips sur un Mac de GitHub et les joint à la release ; l'installeur Windows `.exe` reste à joindre à la main. Pour une app signée et notarisée (plus d'avertissement Gatekeeper), il faut un compte Apple Developer : voir les variables `MACOS_SIGN_IDENTITY` et `NOTARY_PROFILE` de `build/macos/package.sh`.
 
 ## Utilisation
 
@@ -42,9 +54,11 @@ src/
     Download/                ModDownloader (cache %LocalAppData%\ModpackMerger\cache, vérif. SHA-1/512)
     Metadata/                JarMetadataReader (fabric.mod.json, quilt.mod.json, mods.toml, neoforge.mods.toml, mcmod.info)
     Injection/               ConflictAnalyzer, VersionComparer, ModInjector
-  ModpackMerger.App/         WPF + MVVM (CommunityToolkit.Mvvm), thème Fluent natif
+  ModpackMerger.App/         Windows : WPF + MVVM (CommunityToolkit.Mvvm), thème Fluent natif
     Animations/              propriétés attachées d'animation (entrée, survol, transitions…)
     ViewModels/  Views/  Services/  Converters/
+  ModpackMerger.Mac/         macOS : Avalonia + mêmes ViewModels (adaptés : dialogues asynchrones, Finder, chemins ~/Library)
+build/macos/                 Info.plist, droits, script de création du .app et du zip
 tests/
   ModpackMerger.Core.Tests/  xUnit, archives et jars synthétiques
 ```

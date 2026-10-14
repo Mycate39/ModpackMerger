@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ModpackMerger.Core\ModpackMerger.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <AssemblyName>ModpackMerger</AssemblyName>
+    <RootNamespace>ModpackMerger.Mac</RootNamespace>
+    <Product>Modpack Merger</Product>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Logo partagé avec l'application Windows. -->
+    <AvaloniaResource Include="..\ModpackMerger.App\Assets\logo.png" Link="Assets\logo.png" />
+  </ItemGroup>
+
+</Project>

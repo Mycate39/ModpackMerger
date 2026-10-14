@@ -1,0 +1,40 @@
+# Construit l'application macOS (Apple Silicon et Intel) et joint les zips à la release GitHub.
+# L'app Mac y cherche ses mises à jour : ModpackMerger-<version>-macos-<arch>.zip.
+name: macOS
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Tests du cœur métier
+        run: dotnet test tests/ModpackMerger.Core.Tests
+
+      - name: Paquets .app
+        run: |
+          bash build/macos/package.sh arm64
+          bash build/macos/package.sh x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ModpackMerger-macos
+          path: dist/*.zip
+
+      - name: Ajout à la release
+        if: github.event_name == 'release'
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/*.zip --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
